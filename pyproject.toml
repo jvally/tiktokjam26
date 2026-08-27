@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "techjam-shopping-copilot"
+version = "0.1.0"
+description = "Dependency-free team baseline for a conversational shopping copilot"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+shopping-copilot = "shopping_copilot.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["shared*", "conversation*", "retrieval*", "ranking*", "policy*", "evaluation*", "shopping_copilot*"]
+
+[tool.setuptools.package-data]
+shopping_copilot = ["demo_data/*.json"]

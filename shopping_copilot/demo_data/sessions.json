@@ -1,0 +1,7 @@
+[
+  {"session_id":"synthetic-running","target_parent_asin":"DEMO001","state":{"query":"comfortable black running shoes","intent":"buying","hard_constraints":{"category":"shoes","color":"black","budget_max":100},"soft_preferences":{"feature":["comfortable"],"use_case":["running"]}}},
+  {"session_id":"synthetic-shirt","target_parent_asin":"DEMO005","state":{"query":"black cotton shirt","hard_constraints":{"category":"clothing","material":"cotton","budget_max":25}}},
+  {"session_id":"synthetic-jacket","target_parent_asin":"DEMO007","state":{"query":"navy waterproof travel jacket","hard_constraints":{"budget_max":100,"color":"navy"},"soft_preferences":{"feature":"packable","use_case":"travel"}}},
+  {"session_id":"synthetic-earrings","target_parent_asin":"DEMO009","state":{"query":"minimalist silver hoop earrings","hard_constraints":{"category":"jewelry","material":"sterling silver","budget_max":40}}},
+  {"session_id":"synthetic-hiking","target_parent_asin":"DEMO018","state":{"query":"waterproof hiking boots","hard_constraints":{"category":"shoes","budget_max":100},"negative_constraints":{"material":"leather"},"soft_preferences":{"feature":"vegan"}}}
+]
