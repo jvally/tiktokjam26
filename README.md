@@ -1,4 +1,8 @@
-# TechJam Shopping Copilot — team baseline
+# tiktokjam26
+
+Tiktok jam hackathon project: Track 4
+
+## Shopping Copilot team baseline
 
 A runnable starting point for a five-person conversational-search team. Python 3.9+;
 **no runtime dependencies, model downloads, API keys, or external services required.**
