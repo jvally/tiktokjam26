@@ -1,0 +1,6 @@
+# Optional local AI stack. The default agent does not require these packages.
+# Use the CPU index explicitly; PyPI's Linux torch build may pull CUDA libraries.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.10.0+cpu
+numpy>=1.26
+sentence-transformers>=3.0

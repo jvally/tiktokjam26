@@ -1,3 +1,5 @@
-from .clarification import decide
+"""Person 4: clarification strategy."""
 
-__all__ = ["decide"]
+from .clarification import Clarification, decide, question_utilities
+
+__all__ = ["Clarification", "decide", "question_utilities"]

@@ -1,12 +1,66 @@
+# Python bytecode and tool caches
 __pycache__/
 *.py[cod]
-.venv/
-.env
-*.egg-info/
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.ipynb_checkpoints/
+
+# Packaging and build outputs
 build/
 dist/
-.pytest_cache/
-.coverage
-data/private/
-artifacts/
+*.egg-info/
+
+# Virtual environments, local package installs, and secrets
+.venv/
+.venv-*/
+venv/
+env/
+ENV/
+.semantic-packages/
+.env
+.env.*
+!.env.example
+.secrets/
+*.pem
+*.key
+
+# Editors and operating-system files
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local evaluator, experiment, and log outputs
+/results.json
+*.local.json
+*.log
+
+# Downloaded catalog and generated search/model indexes
+# Keep data/public_set.jsonl and data/README.md under version control.
+/data/catalog.jsonl
+/data/catalog.jsonl.gz
+/data/.cache/
+/data/semantic_index/
+/data/releases/
+
+# Organizer-only/private material excluded from participant repositories
+/organizer/
+/secure/
+/docs/audits/
+/docs/data_selection_audit.md
+/docs/participant_release_checklist.md
+/tests/test_5core_builder.py
+/tests/test_organizer_pipeline.py

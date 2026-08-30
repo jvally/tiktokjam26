@@ -1,4 +1,6 @@
-from .catalog import load_catalog
-from .retriever import LexicalRetriever, Retriever
+"""Person 2: frozen-catalog candidate retrieval."""
 
-__all__ = ["load_catalog", "LexicalRetriever", "Retriever"]
+from .index import Candidate, CatalogIndex
+from .facets import ProductFacets, normalize_facets
+
+__all__ = ["Candidate", "CatalogIndex", "ProductFacets", "normalize_facets"]
