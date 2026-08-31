@@ -46,15 +46,20 @@ Current responsibilities:
 - normalize color, material, size, style, use-case, feature, category, and brand
   facets while retaining every participant-visible metadata field;
 - use 160 candidates for the first unconstrained turn and up to 300 afterward;
-- optionally fuse FTS5 and a precomputed Sentence Transformer index with RRF;
+- optionally fuse wider FTS5 and precomputed Sentence Transformer pools with
+  configurable weighted RRF;
 - implement broad/core/constraint/exact lexical routes and preserve raw BM25,
   dense, route-specific, and fused ranks in diagnostics.
 
 Interface: `CatalogIndex.retrieve(state, limit=300) -> list[Candidate]`.
 
 The four-route fusion and query expansion paths remain off because their fixed-screen
-ablations reduced the composite score. Next, validate dense/hybrid retrieval on the
-target-disjoint split and include index-build time, storage, memory, and latency.
+ablations reduced the composite score. The completed MiniLM retrieval-only benchmark
+found 75/25 lexical/semantic fusion improved Recall@200 from `0.8525` to `0.8600`
+and Hit@10 from `0.4525` to `0.4650`, while lowering raw MRR@10 and adding latency.
+The full public evaluator then scored hybrid `0.832978` versus lexical `0.841669`,
+so it remains optional and disabled. See `docs/RETRIEVAL.md` and
+`docs/retrieval_benchmark_results.json`.
 
 ## Person 3 — Ranking
 
@@ -122,5 +127,6 @@ python3 -m unittest discover -s tests -v
 python3 -m evaluator.local_evaluator --output enhanced_v3_results.local.json
 python3 -m evaluation.compare_results baseline_results.local.json enhanced_v3_results.local.json
 python3 -m evaluation.pipeline_diagnostics --output pipeline_diagnostics_v3.local.json
+python3 -m evaluation.retrieval_benchmark --semantic-index data/semantic_index
 python3 -m evaluation.ltr_experiment --output ltr_experiment.local.json
 ```

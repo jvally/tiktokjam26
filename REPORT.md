@@ -116,15 +116,19 @@ runtime, network access, or paid tokens. Estimated inference cost is zero.
 
 An optional neural path is implemented but not included in the reported score:
 
-- `BAAI/bge-small-en-v1.5` for catalog/query embeddings;
+- pinned `sentence-transformers/all-MiniLM-L6-v2` catalog/query embeddings;
 - `cross-encoder/ms-marco-MiniLM-L6-v2` for at most 30 shortlist candidates;
-- Reciprocal Rank Fusion with the lexical candidates;
+- weighted Reciprocal Rank Fusion over wider lexical/semantic pools;
 - deterministic fallback to FTS5/formula ranking on load or inference failure.
 
-A CPU-only dense-index trial projected roughly 64 minutes for this 50,000-product
-catalog, so it was stopped after five of 391 batches and its incomplete artifacts
-were removed. The semantic path must beat the target-disjoint default after storage,
-startup, latency, and memory are measured before it is adopted.
+The complete 50,000-product MiniLM index is about 73 MB. On 400 fixed public probes,
+75/25 lexical/semantic fusion raised Recall@200 from `0.8525` to `0.8600` and
+retrieval-order Hit@10 from `0.4525` to `0.4650`. It lowered MRR@10 from `0.349835`
+to `0.306197` and raised mean retrieve-only latency from `48.2 ms` to `102.5 ms`, so
+it remains optional. The full public evaluator confirmed that decision: hybrid
+scored `0.832978` versus `0.841669` for lexical default, with HitRate@10 `0.985`
+versus `1.000`. See `docs/RETRIEVAL.md`; the fixed-probe metrics are not themselves
+the interactive TechnicalScore.
 
 ## Limitations
 
@@ -146,9 +150,10 @@ python3 -m unittest discover -s tests -v
 python3 -m evaluator.local_evaluator --output enhanced_v3_results.local.json
 python3 -m evaluation.compare_results baseline_results.local.json enhanced_v3_results.local.json
 python3 -m evaluation.pipeline_diagnostics --output pipeline_diagnostics_v3.local.json
+python3 -m evaluation.retrieval_benchmark --semantic-index data/semantic_index
 python3 -m evaluation.ltr_experiment --output ltr_experiment.local.json
 python3 -m examples.demo_session
 ```
 
 See `TEAM.md` for ownership, `docs/experiments.md` for ablations, and
-`docs/semantic_models.md` for optional-model setup.
+`docs/RETRIEVAL.md` and `docs/semantic_models.md` for optional-model setup.

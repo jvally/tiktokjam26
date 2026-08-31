@@ -12,14 +12,18 @@ Run this during development while the selected model is legally accessible:
 python3 -m pip install -r requirements-semantic.txt
 python3 -m retrieval.semantic \
   --catalog data/catalog.jsonl \
-  --output data/semantic_index \
-  --model BAAI/bge-small-en-v1.5
+  --output data/semantic_index
 ```
 
 The output contains memory-mappable embeddings, catalog identifiers, and metadata
 including the catalog SHA-256, model name, row count, and dimensions. The generated
 directory is ignored by Git; package it separately only if submission size and model
 licensing rules allow it.
+
+The default is `sentence-transformers/all-MiniLM-L6-v2` pinned to revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`. Pass `--model` and `--revision`
+together for another model, rebuild the index, and record that identity in the
+experiment. Runtime model/revision overrides must match the index metadata.
 
 `requirements-semantic.txt` selects PyTorch's CPU wheel index and pins a CPU build so
 the experiment does not accidentally download CUDA runtimes. Use a separate virtual
@@ -29,7 +33,6 @@ environment; the core agent does not need these packages.
 
 ```sh
 export TECHJAM_SEMANTIC_INDEX=data/semantic_index
-export TECHJAM_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 export TECHJAM_RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L6-v2
 python3 -m evaluator.local_evaluator --output semantic_results.local.json
 ```
@@ -56,13 +59,15 @@ If recall does not rise, the dense model or fusion weighting is not earning its 
 
 ## Current benchmark status
 
-The optional dependencies and model load were verified with `torch 2.10.0+cpu` and
-CUDA disabled. On the available WSL CPU, encoding the entire catalog with
-`BAAI/bge-small-en-v1.5` at batch size 128 projected about 64 minutes after five of
-391 batches. The build was stopped and its incomplete index removed. Accordingly,
-neither dense retrieval nor CrossEncoder reranking is enabled in the reported score.
+The complete MiniLM index contains 50,000 embeddings (384 dimensions, float32) and
+is about 73 MB. The fixed 400-probe comparison selected 75/25 lexical/semantic
+fusion: Recall@200 improved from `0.8525` to `0.8600` and retrieval Hit@10 from
+`0.4525` to `0.4650`, while MRR@10 fell and mean latency increased by about 54 ms.
+See `docs/RETRIEVAL.md` and `docs/retrieval_benchmark_results.json` for the full
+method and result.
 
-This is a resource result, not a relevance result. Run the complete target-disjoint
-ablation on the actual submission machine before deciding whether to package an
-index. Record model/index size, build and startup time, mean/p95 turn latency, peak
-RSS, Recall@K, Hit@10, MRR, MTTC, and total score.
+The full public evaluator scored hybrid `0.832978` versus lexical `0.841669`, so the
+optional path is not enabled. Before packaging a future index, repeat the complete
+target-disjoint agent ablation on the actual submission machine. Record model/index
+size, build and startup time, mean/p95 turn latency, peak RSS, Recall@K, Hit@10, MRR,
+MTTC, and total score.

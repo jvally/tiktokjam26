@@ -26,6 +26,9 @@ class Agent:
         catalog_path: str | Path = "data/catalog.jsonl",
         semantic_retriever: SemanticRetriever | None = None,
         semantic_reranker: SemanticReranker | None = None,
+        semantic_lexical_weight: float = 0.75,
+        semantic_pool_multiplier: int = 2,
+        semantic_minimum_pool: int = 300,
         candidate_limit: int = 300,
         initial_candidate_limit: int = 160,
         enable_query_expansion: bool = False,
@@ -41,8 +44,10 @@ class Agent:
         if semantic_retriever is None and os.environ.get("TECHJAM_SEMANTIC_INDEX"):
             try:
                 semantic_retriever = SentenceTransformerIndex(
-                    os.environ["TECHJAM_SEMANTIC_INDEX"],
-                    os.environ.get("TECHJAM_EMBEDDING_MODEL"),
+                    index_directory=os.environ["TECHJAM_SEMANTIC_INDEX"],
+                    model_name=os.environ.get("TECHJAM_EMBEDDING_MODEL"),
+                    model_revision=os.environ.get("TECHJAM_EMBEDDING_REVISION"),
+                    catalog_path=self.catalog_path,
                 )
             except Exception as exc:
                 warnings.warn(f"Could not load semantic index; using FTS5 only: {exc}", RuntimeWarning)
@@ -66,6 +71,9 @@ class Agent:
         self.index = CatalogIndex(
             self.catalog_path,
             semantic_retriever=semantic_retriever,
+            semantic_lexical_weight=semantic_lexical_weight,
+            semantic_pool_multiplier=semantic_pool_multiplier,
+            semantic_minimum_pool=semantic_minimum_pool,
             expand_queries=enable_query_expansion,
             multi_route=enable_multi_route,
             use_persistent_cache=use_persistent_cache,

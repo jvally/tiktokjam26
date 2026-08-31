@@ -113,13 +113,37 @@ class CatalogIndex:
         catalog_path: str | Path,
         semantic_retriever: SemanticRetriever | None = None,
         rrf_k: int = 60,
+        semantic_lexical_weight: float = 0.75,
+        semantic_pool_multiplier: int = 2,
+        semantic_minimum_pool: int = 300,
         expand_queries: bool = False,
         multi_route: bool = False,
         use_persistent_cache: bool = True,
     ) -> None:
+        if isinstance(rrf_k, bool) or not isinstance(rrf_k, int) or rrf_k < 1:
+            raise ValueError("rrf_k must be a positive integer")
+        if isinstance(semantic_lexical_weight, bool) or not isinstance(
+            semantic_lexical_weight, (int, float)
+        ) or not 0.0 <= float(semantic_lexical_weight) <= 1.0:
+            raise ValueError("semantic_lexical_weight must be between zero and one")
+        if (
+            isinstance(semantic_pool_multiplier, bool)
+            or not isinstance(semantic_pool_multiplier, int)
+            or semantic_pool_multiplier < 1
+        ):
+            raise ValueError("semantic_pool_multiplier must be a positive integer")
+        if (
+            isinstance(semantic_minimum_pool, bool)
+            or not isinstance(semantic_minimum_pool, int)
+            or semantic_minimum_pool < 1
+        ):
+            raise ValueError("semantic_minimum_pool must be a positive integer")
         self.catalog_path = Path(catalog_path)
         self.semantic_retriever = semantic_retriever
         self.rrf_k = rrf_k
+        self.semantic_lexical_weight = float(semantic_lexical_weight)
+        self.semantic_pool_multiplier = semantic_pool_multiplier
+        self.semantic_minimum_pool = semantic_minimum_pool
         self.expand_queries = expand_queries
         self.multi_route = multi_route
         self.cache_hit = False
@@ -366,17 +390,22 @@ class CatalogIndex:
             (item.attribute, str(item.value), item.phrase, item.kind, item.intent_version)
             for item in state.constraints
         )
+        semantic_query_available = self.semantic_retriever is not None and bool(state.query)
+        pool_limit = (
+            min(1000, max(self.semantic_minimum_pool, limit * self.semantic_pool_multiplier))
+            if semantic_query_available else limit
+        )
         cache_key = (
             state.query,
             constraint_signature,
-            limit,
+            pool_limit,
             self.multi_route,
             self.expand_queries,
         )
         cached = self._lexical_cache.get(cache_key)
         self.last_query_cache_hit = cached is not None
         if cached is None:
-            lexical = self._lexical(state, limit)
+            lexical = self._lexical(state, pool_limit)
             self._lexical_cache[cache_key] = tuple(lexical)
             self._lexical_cache.move_to_end(cache_key)
             if len(self._lexical_cache) > self._lexical_cache_limit:
@@ -384,14 +413,15 @@ class CatalogIndex:
         else:
             self._lexical_cache.move_to_end(cache_key)
             lexical = list(cached)
-        if self.semantic_retriever is None or not state.query:
-            return lexical
+        if not semantic_query_available:
+            return lexical[:limit]
         try:
-            semantic = list(self.semantic_retriever.retrieve(state.query, limit))
+            assert self.semantic_retriever is not None
+            semantic = list(self.semantic_retriever.retrieve(state.query, pool_limit))
         except Exception as exc:  # an optional model must never disable the offline agent
             warnings.warn(f"Semantic retrieval failed; continuing with FTS5: {exc}", RuntimeWarning)
             self.semantic_retriever = None
-            return lexical
+            return lexical[:limit]
 
         lexical_by_id = {item.parent_asin: item for item in lexical}
         semantic_rank: dict[str, int] = {}
@@ -404,6 +434,7 @@ class CatalogIndex:
         missing = [identifier for identifier in semantic_rank if identifier not in lexical_by_id]
         combined = {**self._catalog_candidates(missing), **lexical_by_id}
         fused: list[Candidate] = []
+        semantic_weight = 1.0 - self.semantic_lexical_weight
         for identifier, item in combined.items():
             lexical_component = (
                 item.fusion_score if item.fusion_score > 0
@@ -416,7 +447,8 @@ class CatalogIndex:
                 item,
                 semantic_score=semantic_score.get(identifier),
                 semantic_rank=dense_rank,
-                fusion_score=lexical_component + semantic_component,
+                fusion_score=(self.semantic_lexical_weight * lexical_component
+                              + semantic_weight * semantic_component),
             ))
         fused.sort(key=lambda item: (-item.fusion_score, item.lexical_rank or 10**9,
                                     item.semantic_rank or 10**9, item.parent_asin))
