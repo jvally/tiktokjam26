@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Protocol, Sequence
 
 
+DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+DEFAULT_MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+
+
 @dataclass(frozen=True)
 class SemanticHit:
     parent_asin: str
@@ -57,8 +61,9 @@ def _sha256(path: Path) -> str:
 def build_semantic_index(
     catalog_path: str | Path,
     output_directory: str | Path,
-    model_name: str = "BAAI/bge-small-en-v1.5",
+    model_name: str = DEFAULT_MODEL,
     batch_size: int = 64,
+    model_revision: str | None = None,
 ) -> None:
     """Precompute normalized catalog embeddings for offline final evaluation."""
 
@@ -76,7 +81,13 @@ def build_semantic_index(
             identifiers.append(str(product["parent_asin"]))
             texts.append(_product_text(product))
 
-    model = SentenceTransformer(model_name)
+    revision = (
+        DEFAULT_MODEL_REVISION
+        if model_name == DEFAULT_MODEL and model_revision is None
+        else model_revision
+    )
+    model_kwargs = {"revision": revision} if revision else {}
+    model = SentenceTransformer(model_name, **model_kwargs)
     embeddings = model.encode(
         texts,
         batch_size=batch_size,
@@ -87,9 +98,11 @@ def build_semantic_index(
     np.save(output / "embeddings.npy", embeddings)
     (output / "identifiers.json").write_text(json.dumps(identifiers), encoding="utf-8")
     metadata = {
-        "format_version": 1,
+        "format_version": 2,
         "catalog_sha256": _sha256(catalog),
         "model_name": model_name,
+        "model_revision": revision,
+        "model_id": f"{model_name}@{revision}" if revision else model_name,
         "count": len(identifiers),
         "dimensions": int(embeddings.shape[1]),
         "normalized": True,
@@ -97,20 +110,67 @@ def build_semantic_index(
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
 
 
+def _split_model_id(model_id: str) -> tuple[str, str | None]:
+    if "@" not in model_id:
+        return model_id, None
+    model_name, revision = model_id.rsplit("@", 1)
+    return model_name, revision or None
+
+
 class SentenceTransformerIndex:
     """Memory-mapped dense index with a Sentence Transformers query encoder."""
 
-    def __init__(self, index_directory: str | Path, model_name: str | None = None) -> None:
+    def __init__(
+        self,
+        index_directory: str | Path,
+        model_name: str | None = None,
+        model_revision: str | None = None,
+        catalog_path: str | Path | None = None,
+    ) -> None:
         np, SentenceTransformer = _optional_packages()
         directory = Path(index_directory)
-        metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-        self.identifiers = json.loads((directory / "identifiers.json").read_text(encoding="utf-8"))
+        metadata_path = directory / "metadata.json"
+        manifest_path = directory / "manifest.json"
+        if metadata_path.exists():
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            self.identifiers = json.loads(
+                (directory / "identifiers.json").read_text(encoding="utf-8")
+            )
+            recorded_model = str(metadata["model_name"])
+            recorded_revision = metadata.get("model_revision")
+        elif manifest_path.exists():
+            # Backward-compatible reader for the first retrieval experiment format.
+            metadata = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.identifiers = metadata.get("parent_asins")
+            recorded_model, recorded_revision = _split_model_id(str(metadata["model_id"]))
+        else:
+            raise ValueError(f"No semantic index metadata found in {directory}")
         self.embeddings = np.load(directory / "embeddings.npy", mmap_mode="r")
-        if len(self.identifiers) != len(self.embeddings) or len(self.identifiers) != metadata.get("count"):
+        expected_count = metadata.get("count", metadata.get("product_count"))
+        if (
+            not isinstance(self.identifiers, list)
+            or len(self.identifiers) != len(self.embeddings)
+            or len(self.identifiers) != expected_count
+        ):
             raise ValueError("Semantic index identifiers and embeddings do not match")
+        dimensions = metadata.get("dimensions", metadata.get("embedding_dimension"))
+        if dimensions != int(self.embeddings.shape[1]):
+            raise ValueError("Semantic index dimensions do not match metadata")
+        if len(set(self.identifiers)) != len(self.identifiers):
+            raise ValueError("Semantic index identifiers must be unique")
+        recorded_catalog_sha256 = metadata.get("catalog_sha256")
+        if catalog_path is not None and recorded_catalog_sha256 is not None:
+            if _sha256(Path(catalog_path)) != recorded_catalog_sha256:
+                raise ValueError("Semantic index was built from a different catalog")
+        if model_name is not None and model_name != recorded_model:
+            raise ValueError("Embedding model override does not match the semantic index")
+        if model_revision is not None and model_revision != recorded_revision:
+            raise ValueError("Embedding revision override does not match the semantic index")
         self._np = np
-        self.model_name = model_name or str(metadata["model_name"])
-        self.model = SentenceTransformer(self.model_name)
+        self.model_name = recorded_model
+        self.model_revision = recorded_revision
+        model_kwargs = {"revision": self.model_revision} if self.model_revision else {}
+        self.model = SentenceTransformer(self.model_name, **model_kwargs)
 
     def retrieve(self, query: str, limit: int) -> list[SemanticHit]:
         if not query.strip() or limit <= 0:
@@ -132,10 +192,17 @@ def main() -> None:  # pragma: no cover - exercised manually with optional model
     parser = argparse.ArgumentParser(description="Build the optional offline semantic catalog index")
     parser.add_argument("--catalog", default="data/catalog.jsonl")
     parser.add_argument("--output", default="data/semantic_index")
-    parser.add_argument("--model", default="BAAI/bge-small-en-v1.5")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--revision")
     parser.add_argument("--batch-size", type=int, default=64)
     args = parser.parse_args()
-    build_semantic_index(args.catalog, args.output, args.model, args.batch_size)
+    build_semantic_index(
+        args.catalog,
+        args.output,
+        model_name=args.model,
+        batch_size=args.batch_size,
+        model_revision=args.revision,
+    )
 
 
 if __name__ == "__main__":

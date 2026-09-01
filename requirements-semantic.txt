@@ -1,6 +1,8 @@
 # Optional local AI stack. The default agent does not require these packages.
-# Use the CPU index explicitly; PyPI's Linux torch build may pull CUDA libraries.
+# The CPU index avoids CUDA wheels on Linux; macOS resolves its native wheel from PyPI.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.10.0+cpu
-numpy>=1.26
-sentence-transformers>=3.0
+torch==2.8.0+cpu; sys_platform == "linux"
+torch==2.8.0; sys_platform == "darwin"
+numpy>=1.23,<3
+sentence-transformers>=3,<5; python_version < "3.10"
+sentence-transformers>=5,<6; python_version >= "3.10"

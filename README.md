@@ -118,7 +118,7 @@ delegates to five team-owned modules:
 | Workstream | Directory | Responsibility |
 | --- | --- | --- |
 | Conversation/state | `conversation/` | typed multi-slot intent, corrections, and overrides |
-| Retrieval | `retrieval/` | cached FTS5, normalized facets, experimental multi-route/dense fusion |
+| Retrieval | `retrieval/` | cached FTS5, normalized facets, measured weighted dense fusion |
 | Ranking | `ranking/` | constraint evidence, recommendation rotation, calibrated pairwise LTR |
 | Clarification | `policy/` | candidate-aware and experimental counterfactual question value |
 | Integration/evaluation | `shopping_agent/`, `evaluation/` | official API and experiments |
@@ -129,13 +129,15 @@ service). On the released 200-session public set it achieves HitRate@10 `1.000`,
 `0.567230`, MTTC `2.430`, and technical score `0.841569`. These are development
 results, not private-test guarantees. Full methodology, held-out LTR validation,
 ablations, cost, latency, and limitations are in `REPORT.md` and
-`docs/experiments.md`; team ownership is in `TEAM.md`.
+`docs/experiments.md`; the Person 2 benchmark and setup are in
+`docs/RETRIEVAL.md`; team ownership is in `TEAM.md`.
 
 ```bash
 python3 -m unittest discover -s tests -v
 python3 -m evaluator.local_evaluator --output enhanced_v3_results.local.json
 python3 -m evaluation.compare_results baseline_results.local.json enhanced_v3_results.local.json
 python3 -m evaluation.pipeline_diagnostics --output pipeline_diagnostics_v3.local.json
+python3 -m evaluation.retrieval_benchmark --semantic-index data/semantic_index
 python3 -m evaluation.ltr_experiment --output ltr_experiment.local.json
 python3 -m examples.demo_session
 ```
@@ -155,6 +157,7 @@ export TECHJAM_RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L6-v2
 python3 -m evaluator.local_evaluator --output semantic_results.local.json
 ```
 
-`TECHJAM_EMBEDDING_MODEL` can override the model recorded in the index. If an
-optional model fails to load or score, the runtime warns and falls back to
-FTS5/formula ranking. See `docs/semantic_models.md` before adopting model results.
+The embedding model and optional `TECHJAM_EMBEDDING_REVISION` must match the model
+recorded in the index. If an optional model fails to load or score, the runtime
+warns and falls back to FTS5/formula ranking. See `docs/RETRIEVAL.md` and
+`docs/semantic_models.md` before adopting model results.

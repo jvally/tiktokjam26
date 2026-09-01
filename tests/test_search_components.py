@@ -123,6 +123,61 @@ class RetrievalTests(unittest.TestCase):
             finally:
                 index.close()
 
+    def test_weighted_hybrid_fusion_can_favor_lexical_or_semantic_order(self) -> None:
+        class ReverseSemanticRetriever:
+            def retrieve(self, query: str, limit: int) -> list[SemanticHit]:
+                return [SemanticHit(identifier, 1.0 / rank) for rank, identifier in enumerate(
+                    ("D", "C", "B", "A"), 1
+                )]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.jsonl"
+            path.write_text("".join(
+                json.dumps({"parent_asin": identifier, "title": "Running shoe"}) + "\n"
+                for identifier in ("A", "B", "C", "D")
+            ), encoding="utf-8")
+            lexical_first = CatalogIndex(
+                path,
+                semantic_retriever=ReverseSemanticRetriever(),
+                semantic_lexical_weight=0.75,
+                semantic_minimum_pool=4,
+            )
+            semantic_first = CatalogIndex(
+                path,
+                semantic_retriever=ReverseSemanticRetriever(),
+                semantic_lexical_weight=0.25,
+                semantic_minimum_pool=4,
+            )
+            try:
+                state = ConversationState({}, category="running shoe")
+                self.assertEqual(lexical_first.retrieve(state, 4)[0].parent_asin, "A")
+                self.assertEqual(semantic_first.retrieve(state, 4)[0].parent_asin, "D")
+            finally:
+                lexical_first.close()
+                semantic_first.close()
+
+    def test_hybrid_requests_a_wider_candidate_pool(self) -> None:
+        class RecordingSemanticRetriever:
+            requested_limit = 0
+
+            def retrieve(self, query: str, limit: int) -> list[SemanticHit]:
+                self.requested_limit = limit
+                return []
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "catalog.jsonl"
+            path.write_text(
+                json.dumps({"parent_asin": "A", "title": "Running shoe"}) + "\n",
+                encoding="utf-8",
+            )
+            semantic = RecordingSemanticRetriever()
+            index = CatalogIndex(path, semantic_retriever=semantic)
+            try:
+                index.retrieve(ConversationState({}, category="running shoe"), 200)
+                self.assertEqual(semantic.requested_limit, 400)
+            finally:
+                index.close()
+
 
 class RankingTests(unittest.TestCase):
     def test_exact_constraint_match_beats_lexical_leader(self) -> None:

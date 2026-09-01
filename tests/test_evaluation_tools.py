@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from evaluation import compare_results, summarize_turns
 from evaluation.ltr_experiment import target_disjoint_split
+from evaluation.retrieval_benchmark import evaluate_index
 from ranking import train_pairwise
 
 
@@ -37,6 +39,28 @@ class EvaluationToolTests(unittest.TestCase):
         result = summarize_turns(rows)
         self.assertEqual(result["candidate_recall"]["50"], 0.5)
         self.assertEqual(result["ranker_hit_at_10_given_retrieved"], 1.0)
+
+    def test_retrieval_benchmark_keeps_labels_outside_the_index_call(self) -> None:
+        class FakeIndex:
+            received_states: list[object] = []
+
+            def retrieve(self, state: object, limit: int):
+                self.received_states.append(state)
+                return [SimpleNamespace(parent_asin="TARGET")]
+
+        state = object()
+        probes = [{
+            "sample_id": "sample",
+            "scenario_type": "buying",
+            "probe_stage": "initial",
+            "target_parent_asin": "TARGET",
+            "state": state,
+        }]
+        index = FakeIndex()
+        result = evaluate_index(index, probes, candidate_limit=200)
+        self.assertEqual(index.received_states, [state])
+        self.assertEqual(result["candidate_recall_at_200"], 1.0)
+        self.assertEqual(result["by_scenario_type"]["buying"]["retrieval_hit_at_10"], 1.0)
 
     def test_target_disjoint_split_is_deterministic(self) -> None:
         samples = [
